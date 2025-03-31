@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 interface AuthContextType {
@@ -23,6 +23,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
 
   useEffect(() => {
+    // First, set up the auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, currentSession) => {
+        console.log('Auth state changed:', event);
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
+        setIsLoading(false);
+      }
+    );
+
+    // Then check for existing session
     const getSession = async () => {
       try {
         const { data, error } = await supabase.auth.getSession();
@@ -46,24 +57,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     getSession();
 
-    try {
-      const { data: authListener } = supabase.auth.onAuthStateChange(
-        async (event, currentSession) => {
-          console.log('Auth state changed:', event);
-          setSession(currentSession);
-          setUser(currentSession?.user ?? null);
-          setIsLoading(false);
-        }
-      );
-
-      return () => {
-        authListener.subscription.unsubscribe();
-      };
-    } catch (err) {
-      console.error('Auth listener error:', err);
-      setIsLoading(false);
-      return () => {};
-    }
+    // Cleanup subscription on unmount
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signUp = async (
@@ -130,6 +127,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         description: error.message || 'An unexpected error occurred',
         variant: 'destructive',
       });
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -159,6 +157,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         description: error.message || 'Invalid login credentials',
         variant: 'destructive',
       });
+      throw error;
     } finally {
       setIsLoading(false);
     }

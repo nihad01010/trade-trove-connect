@@ -49,7 +49,7 @@ const Login = () => {
     
     try {
       await signIn(values.email, values.password);
-      // The navigation will happen in the effect when isAuthenticated changes
+      // The navigation will happen automatically through the effect in auth context
     } catch (error: any) {
       console.error("Login submission error:", error);
       setLoginError(error.message || "Failed to login. Please try again.");

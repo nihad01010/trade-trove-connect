@@ -1,19 +1,10 @@
 
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
 
-// Use proper default values for development
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://example.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'example-anon-key';
+// Export the supabase client from the central location
+export { supabase };
 
-// Ensure we have values to prevent client errors
-if (!supabaseUrl || !supabaseAnonKey || 
-    supabaseUrl === 'https://example.supabase.co' || 
-    supabaseAnonKey === 'example-anon-key') {
-  console.warn('Supabase URL or Anon Key is missing or using defaults. Authentication and database operations will not work correctly. Please set proper values in your environment variables.');
-}
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
+// Re-export the Database type from the original file
 export type Database = {
   public: {
     Tables: {
