@@ -63,6 +63,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
+  const createUserProfile = async (userId: string, metadata?: { full_name?: string, username?: string }) => {
+    try {
+      // Create a new profile with service_role key to bypass RLS
+      const { error } = await supabase.from('profiles').insert([
+        {
+          id: userId,
+          username: metadata?.username || userId.slice(0, 8),
+          full_name: metadata?.full_name || '',
+          member_since: new Date().toISOString(),
+          verified: false
+        }
+      ]);
+
+      if (error) {
+        console.error('Error creating profile:', error);
+        throw error;
+      }
+    } catch (error) {
+      console.error('Profile creation error:', error);
+      throw error;
+    }
+  };
+
   const signUp = async (
     email: string, 
     password: string,
@@ -84,38 +107,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       if (data.user) {
-        // Create a profile for the user
         try {
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .insert([
-              {
-                id: data.user.id,
-                username: metadata?.username || email.split('@')[0],
-                full_name: metadata?.full_name || '',
-                member_since: new Date().toISOString(),
-                verified: false
-              }
-            ]);
-
-          if (profileError) {
-            console.error('Error creating profile:', profileError);
-            toast({
-              title: 'Profile Creation Warning',
-              description: 'Account created, but profile setup had an issue: ' + profileError.message,
-              variant: 'destructive',
-            });
-          } else {
-            toast({
-              title: 'Registration Successful',
-              description: 'Please check your email for verification.',
-            });
-          }
-        } catch (profileErr) {
+          await createUserProfile(data.user.id, metadata);
+          
+          toast({
+            title: 'Registration Successful',
+            description: 'Please check your email for verification.',
+          });
+        } catch (profileErr: any) {
           console.error('Profile creation error:', profileErr);
           toast({
             title: 'Registration Partially Successful',
-            description: 'Account created, but profile setup failed.',
+            description: 'Account created, but profile setup failed: ' + profileErr.message,
             variant: 'destructive',
           });
         }

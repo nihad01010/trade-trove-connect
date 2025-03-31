@@ -22,8 +22,11 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Upload, X } from "lucide-react";
+import { Upload, X, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 
 const formSchema = z.object({
   title: z.string().min(5, {
@@ -49,7 +52,10 @@ const formSchema = z.object({
 
 const CreateListingForm = () => {
   const [images, setImages] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -60,18 +66,97 @@ const CreateListingForm = () => {
       category: "",
       location: "",
       contactPhone: "",
-      contactEmail: "",
+      contactEmail: user?.email || "",
     },
   });
 
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
-    // This would connect to backend in a real app
-    console.log({ ...values, images });
-    
-    toast({
-      title: "Listing created!",
-      description: "Your listing has been successfully created.",
-    });
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "You must be logged in to create a listing.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      
+      // Upload images to storage if any
+      let imageUrls: string[] = [];
+      
+      if (images.length > 0) {
+        // Convert images from blob URLs to files
+        const imageFiles = await Promise.all(
+          images.map(async (blobUrl, index) => {
+            const response = await fetch(blobUrl);
+            const blob = await response.blob();
+            return new File([blob], `image-${index}.${blob.type.split('/')[1]}`, { type: blob.type });
+          })
+        );
+        
+        // Upload each image
+        for (const file of imageFiles) {
+          const filePath = `${user.id}/${Date.now()}-${file.name}`;
+          const { data, error } = await supabase.storage
+            .from('listings-images')
+            .upload(filePath, file);
+            
+          if (error) {
+            console.error('Error uploading image:', error);
+            throw new Error(`Failed to upload image: ${error.message}`);
+          }
+          
+          // Get public URL
+          const { data: publicUrlData } = supabase.storage
+            .from('listings-images')
+            .getPublicUrl(filePath);
+            
+          imageUrls.push(publicUrlData.publicUrl);
+        }
+      }
+      
+      // Create listing
+      const { data, error } = await supabase
+        .from('listings')
+        .insert([
+          {
+            user_id: user.id,
+            title: values.title,
+            description: values.description,
+            price: parseFloat(values.price),
+            category: values.category,
+            location: values.location,
+            images: imageUrls,
+            contact_phone: values.contactPhone || null,
+            contact_email: values.contactEmail,
+          }
+        ])
+        .select()
+        .single();
+      
+      if (error) {
+        throw error;
+      }
+      
+      toast({
+        title: "Listing created!",
+        description: "Your listing has been successfully created.",
+      });
+      
+      // Redirect to listing page
+      navigate(`/listing/${data.id}`);
+    } catch (error: any) {
+      console.error('Error creating listing:', error);
+      toast({
+        title: "Failed to create listing",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -247,8 +332,15 @@ const CreateListingForm = () => {
           </FormDescription>
         </div>
 
-        <Button type="submit" className="w-full bg-marketplace-primary hover:bg-marketplace-primary/90">
-          Create Listing
+        <Button type="submit" className="w-full bg-marketplace-primary hover:bg-marketplace-primary/90" disabled={isSubmitting}>
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Creating...
+            </>
+          ) : (
+            "Create Listing"
+          )}
         </Button>
       </form>
     </Form>
