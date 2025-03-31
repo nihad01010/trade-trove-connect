@@ -78,7 +78,20 @@ export const messageService = {
       throw new Error(error.message);
     }
 
-    return data || [];
+    // Map the response from the database to match our ChatSummary interface
+    const chats: ChatSummary[] = (data || []).map(item => ({
+      id: item.id,
+      otherUserId: item.otheruserid,
+      otherUserName: item.otherusername,
+      otherUserAvatar: item.otheruseravatar,
+      lastMessage: item.lastmessage,
+      lastMessageDate: item.lastmessagedate,
+      unreadCount: item.unreadcount,
+      listingId: item.listingid,
+      listingTitle: item.listingtitle
+    }));
+
+    return chats;
   },
 
   async getUnreadCount(userId: string) {
