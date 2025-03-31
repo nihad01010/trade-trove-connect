@@ -24,37 +24,47 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const getSession = async () => {
-      const { data, error } = await supabase.auth.getSession();
-      
-      if (error) {
-        console.error('Error getting session:', error.message);
-        toast({
-          title: 'Authentication Error',
-          description: error.message,
-          variant: 'destructive',
-        });
-      } else {
-        setSession(data.session);
-        setUser(data.session?.user ?? null);
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error getting session:', error.message);
+          setSession(null);
+          setUser(null);
+        } else {
+          setSession(data.session);
+          setUser(data.session?.user ?? null);
+        }
+      } catch (err) {
+        console.error('Session retrieval error:', err);
+        setSession(null);
+        setUser(null);
+      } finally {
+        setIsLoading(false);
       }
-      
-      setIsLoading(false);
     };
 
     getSession();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, currentSession) => {
-        setSession(currentSession);
-        setUser(currentSession?.user ?? null);
-        setIsLoading(false);
-      }
-    );
+    try {
+      const { data: authListener } = supabase.auth.onAuthStateChange(
+        async (event, currentSession) => {
+          console.log('Auth state changed:', event);
+          setSession(currentSession);
+          setUser(currentSession?.user ?? null);
+          setIsLoading(false);
+        }
+      );
 
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, [toast]);
+      return () => {
+        authListener.subscription.unsubscribe();
+      };
+    } catch (err) {
+      console.error('Auth listener error:', err);
+      setIsLoading(false);
+      return () => {};
+    }
+  }, []);
 
   const signUp = async (
     email: string, 
@@ -78,33 +88,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (data.user) {
         // Create a profile for the user
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert([
-            {
-              id: data.user.id,
-              username: metadata?.username || email.split('@')[0],
-              full_name: metadata?.full_name || '',
-              member_since: new Date().toISOString(),
-              verified: false
-            }
-          ]);
+        try {
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .insert([
+              {
+                id: data.user.id,
+                username: metadata?.username || email.split('@')[0],
+                full_name: metadata?.full_name || '',
+                member_since: new Date().toISOString(),
+                verified: false
+              }
+            ]);
 
-        if (profileError) {
-          console.error('Error creating profile:', profileError);
+          if (profileError) {
+            console.error('Error creating profile:', profileError);
+            toast({
+              title: 'Profile Creation Warning',
+              description: 'Account created, but profile setup had an issue: ' + profileError.message,
+              variant: 'destructive',
+            });
+          } else {
+            toast({
+              title: 'Registration Successful',
+              description: 'Please check your email for verification.',
+            });
+          }
+        } catch (profileErr) {
+          console.error('Profile creation error:', profileErr);
           toast({
-            title: 'Profile Creation Failed',
-            description: profileError.message,
+            title: 'Registration Partially Successful',
+            description: 'Account created, but profile setup failed.',
             variant: 'destructive',
-          });
-        } else {
-          toast({
-            title: 'Registration Successful',
-            description: 'Please check your email for verification.',
           });
         }
       }
     } catch (error: any) {
+      console.error('Registration error:', error);
       toast({
         title: 'Registration Failed',
         description: error.message || 'An unexpected error occurred',
@@ -130,9 +150,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       toast({
         title: 'Login Successful',
-        description: `Welcome back, ${data.user.email}!`,
+        description: `Welcome back!`,
       });
     } catch (error: any) {
+      console.error('Login error:', error);
       toast({
         title: 'Login Failed',
         description: error.message || 'Invalid login credentials',
@@ -157,6 +178,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         description: 'You have been successfully logged out.',
       });
     } catch (error: any) {
+      console.error('Logout error:', error);
       toast({
         title: 'Logout Failed',
         description: error.message || 'Failed to log out',

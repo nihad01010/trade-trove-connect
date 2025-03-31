@@ -10,7 +10,8 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import Navbar from "@/components/Navbar";
-import { Loader2 } from "lucide-react";
+import { Loader2, Mail, Lock } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
   email: z.string().email({
@@ -22,10 +23,12 @@ const formSchema = z.object({
 });
 
 const Login = () => {
-  const { signIn, isLoading } = useAuth();
+  const { signIn, isLoading, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { toast } = useToast();
   const from = (location.state as any)?.from?.pathname || "/";
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -35,9 +38,22 @@ const Login = () => {
     },
   });
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    await signIn(values.email, values.password);
+  // Redirect if already authenticated
+  if (isAuthenticated) {
     navigate(from, { replace: true });
+    return null;
+  }
+
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    setLoginError(null);
+    
+    try {
+      await signIn(values.email, values.password);
+      // The navigation will happen in the effect when isAuthenticated changes
+    } catch (error: any) {
+      console.error("Login submission error:", error);
+      setLoginError(error.message || "Failed to login. Please try again.");
+    }
   };
 
   return (
@@ -52,6 +68,12 @@ const Login = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {loginError && (
+              <div className="bg-red-50 text-red-500 p-3 rounded-md mb-4 text-sm">
+                {loginError}
+              </div>
+            )}
+            
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <FormField
@@ -61,11 +83,15 @@ const Login = () => {
                     <FormItem>
                       <FormLabel>Email</FormLabel>
                       <FormControl>
-                        <Input 
-                          placeholder="email@example.com" 
-                          {...field} 
-                          disabled={isLoading}
-                        />
+                        <div className="flex items-center relative">
+                          <Mail className="absolute left-3 h-4 w-4 text-gray-400" />
+                          <Input 
+                            placeholder="email@example.com" 
+                            className="pl-10"
+                            {...field} 
+                            disabled={isLoading}
+                          />
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -78,12 +104,16 @@ const Login = () => {
                     <FormItem>
                       <FormLabel>Password</FormLabel>
                       <FormControl>
-                        <Input 
-                          type="password" 
-                          placeholder="******" 
-                          {...field} 
-                          disabled={isLoading}
-                        />
+                        <div className="flex items-center relative">
+                          <Lock className="absolute left-3 h-4 w-4 text-gray-400" />
+                          <Input 
+                            type="password" 
+                            placeholder="******" 
+                            className="pl-10"
+                            {...field} 
+                            disabled={isLoading}
+                          />
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>

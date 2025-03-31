@@ -1,4 +1,5 @@
 
+import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,8 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import Navbar from "@/components/Navbar";
-import { Loader2 } from "lucide-react";
+import { Loader2, Mail, Lock, User, UserCheck } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
   username: z.string().min(3, {
@@ -31,8 +33,10 @@ const formSchema = z.object({
 });
 
 const Register = () => {
-  const { signUp, isLoading } = useAuth();
+  const { signUp, isLoading, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const [registerError, setRegisterError] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -45,12 +49,34 @@ const Register = () => {
     },
   });
 
+  // Redirect if already authenticated
+  if (isAuthenticated) {
+    navigate("/");
+    return null;
+  }
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    await signUp(values.email, values.password, {
-      username: values.username,
-      full_name: values.fullName
-    });
-    navigate("/login");
+    setRegisterError(null);
+    
+    try {
+      await signUp(values.email, values.password, {
+        username: values.username,
+        full_name: values.fullName
+      });
+      
+      toast({
+        title: "Registration successful",
+        description: "You can now log in with your credentials.",
+      });
+      
+      // Navigate to login page
+      setTimeout(() => {
+        navigate("/login");
+      }, 1500);
+    } catch (error: any) {
+      console.error("Registration submission error:", error);
+      setRegisterError(error.message || "Failed to register. Please try again.");
+    }
   };
 
   return (
@@ -65,6 +91,12 @@ const Register = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {registerError && (
+              <div className="bg-red-50 text-red-500 p-3 rounded-md mb-4 text-sm">
+                {registerError}
+              </div>
+            )}
+            
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <FormField
@@ -74,11 +106,15 @@ const Register = () => {
                     <FormItem>
                       <FormLabel>Username</FormLabel>
                       <FormControl>
-                        <Input 
-                          placeholder="Username" 
-                          {...field} 
-                          disabled={isLoading}
-                        />
+                        <div className="flex items-center relative">
+                          <User className="absolute left-3 h-4 w-4 text-gray-400" />
+                          <Input 
+                            placeholder="Username" 
+                            className="pl-10"
+                            {...field} 
+                            disabled={isLoading}
+                          />
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -91,11 +127,15 @@ const Register = () => {
                     <FormItem>
                       <FormLabel>Full Name</FormLabel>
                       <FormControl>
-                        <Input 
-                          placeholder="John Doe" 
-                          {...field} 
-                          disabled={isLoading}
-                        />
+                        <div className="flex items-center relative">
+                          <UserCheck className="absolute left-3 h-4 w-4 text-gray-400" />
+                          <Input 
+                            placeholder="John Doe" 
+                            className="pl-10"
+                            {...field} 
+                            disabled={isLoading}
+                          />
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -108,11 +148,15 @@ const Register = () => {
                     <FormItem>
                       <FormLabel>Email</FormLabel>
                       <FormControl>
-                        <Input 
-                          placeholder="email@example.com" 
-                          {...field} 
-                          disabled={isLoading}
-                        />
+                        <div className="flex items-center relative">
+                          <Mail className="absolute left-3 h-4 w-4 text-gray-400" />
+                          <Input 
+                            placeholder="email@example.com" 
+                            className="pl-10"
+                            {...field} 
+                            disabled={isLoading}
+                          />
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -125,12 +169,16 @@ const Register = () => {
                     <FormItem>
                       <FormLabel>Password</FormLabel>
                       <FormControl>
-                        <Input 
-                          type="password" 
-                          placeholder="******" 
-                          {...field} 
-                          disabled={isLoading}
-                        />
+                        <div className="flex items-center relative">
+                          <Lock className="absolute left-3 h-4 w-4 text-gray-400" />
+                          <Input 
+                            type="password" 
+                            placeholder="******" 
+                            className="pl-10"
+                            {...field} 
+                            disabled={isLoading}
+                          />
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -143,12 +191,16 @@ const Register = () => {
                     <FormItem>
                       <FormLabel>Confirm Password</FormLabel>
                       <FormControl>
-                        <Input 
-                          type="password" 
-                          placeholder="******" 
-                          {...field} 
-                          disabled={isLoading}
-                        />
+                        <div className="flex items-center relative">
+                          <Lock className="absolute left-3 h-4 w-4 text-gray-400" />
+                          <Input 
+                            type="password" 
+                            placeholder="******" 
+                            className="pl-10"
+                            {...field} 
+                            disabled={isLoading}
+                          />
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
